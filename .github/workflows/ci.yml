@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: .NET 10 · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore tests/Rudy.KubePath.Tests/Rudy.KubePath.Tests.csproj
+      - name: Build
+        run: dotnet build tests/Rudy.KubePath.Tests/Rudy.KubePath.Tests.csproj --configuration Release --no-restore
+      - name: Test
+        run: dotnet test tests/Rudy.KubePath.Tests/Rudy.KubePath.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal"
+      - name: Analyze unsafe example
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set +e
+          dotnet run --project src/Rudy.KubePath/Rudy.KubePath.csproj --configuration Release --no-build -- analyze examples/unsafe-cluster.yaml --format sarif --output "$RUNNER_TEMP/kubepath.sarif" --fail-on high
+          status=$?
+          test "$status" -eq 1
+          test -s "$RUNNER_TEMP/kubepath.sarif"
+
