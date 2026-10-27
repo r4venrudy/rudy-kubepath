@@ -61,7 +61,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: registry.example.invalid/payments/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          image: registry.example.invalid/payments/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           resources:
             requests:
               cpu: 100m

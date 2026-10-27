@@ -7,6 +7,25 @@ namespace Rudy.KubePath.Tests;
 public sealed class AnalyzerTests
 {
     [Theory]
+    [InlineData("", false)]
+    [InlineData("0123456789abcdef", false)]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", true)]
+    [InlineData("gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", false)]
+    public void ImagePinRequiresACompleteHexDigest(string digest, bool pinned)
+    {
+        var report = Analyze($$"""
+            apiVersion: v1
+            kind: Pod
+            metadata: { name: app, namespace: demo }
+            spec:
+              containers:
+              - name: app
+                image: "registry.invalid/app@sha256:{{digest}}"
+            """);
+        Assert.Equal(!pinned, report.Findings.Any(f => f.Id.Contains("POD_IMAGE_UNPINNED", StringComparison.Ordinal)));
+    }
+
+    [Theory]
     [InlineData("*/proxy", true)]
     [InlineData("nodes/proxy", true)]
     [InlineData("*", true)]
@@ -352,7 +371,7 @@ public sealed class AnalyzerTests
               automountServiceAccountToken: false
               containers:
               - name: app
-                image: example.invalid/app@sha256:0123456789abcdef
+                image: example.invalid/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
             """);
 
         Assert.DoesNotContain(report.Findings, finding => finding.Id.Contains("POD_SERVICE_ACCOUNT_TOKEN_AUTOMOUNT", StringComparison.Ordinal));
@@ -430,7 +449,7 @@ public sealed class AnalyzerTests
                       type: RuntimeDefault
                   containers:
                   - name: app
-                    image: registry.invalid/app@sha256:0123456789abcdef
+                    image: registry.invalid/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
                     securityContext:
                       allowPrivilegeEscalation: false
                       capabilities:
@@ -459,7 +478,7 @@ public sealed class AnalyzerTests
             spec:
               containers:
               - name: app
-                image: registry.invalid/app@sha256:0123456789abcdef
+                image: registry.invalid/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
             """);
 
         var finding = SingleRule(report, "NETWORKPOLICY_NONE");
@@ -476,7 +495,7 @@ public sealed class AnalyzerTests
             spec:
               containers:
               - name: app
-                image: registry.invalid/app@sha256:0123456789abcdef
+                image: registry.invalid/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
             ---
             apiVersion: networking.k8s.io/v1
             kind: NetworkPolicy
@@ -552,7 +571,7 @@ public sealed class AnalyzerTests
             spec:
               containers:
               - name: app
-                image: example.invalid/app@sha256:0123456789abcdef
+                image: example.invalid/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
             """);
 
         using var json = JsonDocument.Parse(OutputRenderer.Render(report, "json"));

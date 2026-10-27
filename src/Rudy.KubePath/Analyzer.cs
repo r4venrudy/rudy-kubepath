@@ -806,7 +806,10 @@ public sealed class Analyzer
             return false;
         }
         var at = image.LastIndexOf('@');
-        return at >= 0 && image[(at + 1)..].StartsWith("sha256:", StringComparison.OrdinalIgnoreCase);
+        if (at <= 0 || !image[(at + 1)..].StartsWith("sha256:", StringComparison.Ordinal))
+            return false;
+        var digest = image[(at + 8)..];
+        return digest.Length == 64 && digest.All(static ch => ch is >= '0' and <= '9' or >= 'a' and <= 'f');
     }
 
     private static void AddContainerFinding(
