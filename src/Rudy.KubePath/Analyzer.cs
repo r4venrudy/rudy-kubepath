@@ -718,15 +718,21 @@ public sealed class Analyzer
 
     private static bool RuleAllows(PolicyRule rule, string verb, string resource, string apiGroup) =>
         TokenMatches(rule.Verbs, verb)
-        && TokenMatches(rule.Resources, resource)
+        && ResourceMatches(rule.Resources, resource)
         && TokenMatches(rule.ApiGroups, apiGroup);
 
     private static bool TokenMatches(IReadOnlyList<string> patterns, string value) =>
         patterns.Any(pattern =>
             pattern == "*"
-            || pattern.Equals(value, StringComparison.Ordinal)
-            || (pattern.EndsWith("/*", StringComparison.Ordinal) &&
-                value.StartsWith(pattern[..^1], StringComparison.Ordinal)));
+            || pattern.Equals(value, StringComparison.Ordinal));
+
+    // Kubernetes permits */subresource, not resource/* prefix globs.
+    private static bool ResourceMatches(IReadOnlyList<string> patterns, string value)
+    {
+        var slash = value.IndexOf('/');
+        return TokenMatches(patterns, value)
+            || (slash >= 0 && patterns.Contains("*" + value[slash..], StringComparer.Ordinal));
+    }
 
     private static List<Grant> EffectiveGrants(string principal, List<Grant> allGrants)
     {
