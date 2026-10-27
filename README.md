@@ -70,6 +70,8 @@ dot -Tsvg kubepath.dot -o kubepath.svg
 
 Supported report formats are `text`, `json`, `sarif`, and `dot`. Use `--fail-on none|critical|high|medium|low|info` to set a CI gate. `--max-files` adjusts the directory scan limit.
 
+YAML documents wrapped in `kind: List` are analyzed item by item, including nested Lists. Findings retain the containing file/document reference. All inputs share a 5,000 resource/list-node limit; malformed List envelopes produce input findings instead of an empty clean report.
+
 ## Build from source
 
 Requirements: .NET 10 SDK.

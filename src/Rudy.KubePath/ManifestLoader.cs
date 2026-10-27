@@ -6,12 +6,14 @@ namespace Rudy.KubePath;
 public sealed class ManifestLoader
 {
     public const int MaxYamlDocuments = 5_000;
+    public const int MaxManifestResources = 5_000;
     public const int MaxInputBytesPerFile = 8 * 1024 * 1024;
     public const int MaxWorkloadContainers = 20_000;
 
     public Inventory Parse(IEnumerable<ManifestInput> inputs)
     {
         var inventory = new Inventory();
+        var resourceCount = 0;
 
         foreach (var input in inputs)
         {
@@ -38,7 +40,11 @@ public sealed class ManifestLoader
 
                     inventory.DocumentCount++;
                     var source = new SourceRef(input.Path, inventory.DocumentCount);
-                    ParseDocument(document.RootNode, source, inventory);
+                    if (!ParseResourceTree(document.RootNode, source, inventory, ref resourceCount))
+                    {
+                        AddSyntheticServiceAccounts(inventory);
+                        return inventory;
+                    }
                 }
             }
             catch (YamlException ex)
@@ -53,6 +59,49 @@ public sealed class ManifestLoader
 
         AddSyntheticServiceAccounts(inventory);
         return inventory;
+    }
+
+    private static bool ParseResourceTree(YamlNode rootNode, SourceRef source, Inventory inventory, ref int resourceCount)
+    {
+        var pending = new Stack<YamlNode>();
+        pending.Push(rootNode);
+        while (pending.TryPop(out var node))
+        {
+            if (resourceCount >= MaxManifestResources)
+            {
+                AddInputError(inventory, "INPUT_RESOURCE_LIMIT", $"Input exceeds the {MaxManifestResources} resource/list node limit.", source.File, source.Document);
+                return false;
+            }
+            resourceCount++;
+            if (node is YamlMappingNode mapping && Scalar(Get(mapping, "kind")) == "List")
+            {
+                if (Get(mapping, "items") is not YamlSequenceNode items)
+                {
+                    AddInputError(inventory, "LIST_ITEMS_INVALID", "A Kubernetes List must contain an items sequence.", source.File, source.Document);
+                    continue;
+                }
+                if (items.Children.Count > MaxManifestResources - resourceCount - pending.Count)
+                {
+                    AddInputError(inventory, "INPUT_RESOURCE_LIMIT", $"Input exceeds the {MaxManifestResources} resource/list node limit.", source.File, source.Document);
+                    return false;
+                }
+                for (var index = items.Children.Count - 1; index >= 0; index--)
+                {
+                    var item = items.Children[index];
+                    if (item is YamlMappingNode child && string.IsNullOrWhiteSpace(Scalar(Get(child, "kind"))))
+                    {
+                        AddInputError(inventory, "LIST_ITEM_KIND_MISSING", "Each Kubernetes List item must specify its kind.", source.File, source.Document);
+                        continue;
+                    }
+                    pending.Push(item);
+                }
+            }
+            else
+            {
+                ParseDocument(node, source, inventory);
+            }
+        }
+        return true;
     }
 
     private static void ParseDocument(YamlNode rootNode, SourceRef source, Inventory inventory)

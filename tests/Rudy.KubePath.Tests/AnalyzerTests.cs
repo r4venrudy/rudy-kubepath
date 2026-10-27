@@ -6,6 +6,67 @@ namespace Rudy.KubePath.Tests;
 
 public sealed class AnalyzerTests
 {
+    [Fact]
+    public void KubernetesListItemsAreAnalyzed()
+    {
+        var report = Analyze("""
+            apiVersion: v1
+            kind: List
+            items:
+            - apiVersion: v1
+              kind: Pod
+              metadata: { name: unsafe, namespace: demo }
+              spec:
+                containers:
+                - name: app
+                  image: example.invalid/app:latest
+                  securityContext: { privileged: true }
+            """);
+        Assert.Contains(report.Findings, f => f.Id.Contains("POD_PRIVILEGED", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("items: {}")]
+    [InlineData("items: null")]
+    [InlineData("")]
+    public void MalformedListCannotReturnACleanReport(string items)
+    {
+        var inventory = new ManifestLoader().Parse([new ManifestInput("list.yaml", "kind: List\n" + items)]);
+        Assert.NotEmpty(inventory.InputFindings);
+    }
+
+    [Fact]
+    public void ListItemsShareTheManifestResourceBudget()
+    {
+        var yaml = "kind: List\nitems:\n" + string.Concat(Enumerable.Repeat(
+            "- kind: ServiceAccount\n  metadata: { name: app }\n", ManifestLoader.MaxYamlDocuments + 1));
+        var inventory = new ManifestLoader().Parse([new ManifestInput("list.yaml", yaml)]);
+        Assert.Contains(inventory.InputFindings, f => f.Id.Contains("INPUT_RESOURCE_LIMIT", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NestedListsKeepTheirDocumentSource()
+    {
+        var inventory = new ManifestLoader().Parse([new ManifestInput("nested.yaml", """
+            kind: List
+            items:
+            - kind: List
+              items:
+              - kind: ServiceAccount
+                metadata: { name: nested, namespace: demo }
+            """)]);
+        var account = Assert.Single(inventory.ServiceAccounts, a => a.Name == "nested");
+        Assert.Equal(new SourceRef("nested.yaml", 1), account.Source);
+        Assert.Empty(inventory.InputFindings);
+    }
+
+    [Fact]
+    public void CyclicListAliasesStopAtTheResourceLimit()
+    {
+        var inventory = new ManifestLoader().Parse([new ManifestInput("cycle.yaml", "&loop {kind: List, items: [*loop]}")]);
+        Assert.Contains(inventory.InputFindings, f => f.Id.Contains("INPUT_RESOURCE_LIMIT", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("", false)]
     [InlineData("0123456789abcdef", false)]
