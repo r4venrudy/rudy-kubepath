@@ -6,6 +6,29 @@ namespace Rudy.KubePath.Tests;
 
 public sealed class AnalyzerTests
 {
+    [Theory]
+    [InlineData("secrets", "GET")]
+    [InlineData("Secrets", "get")]
+    public void RbacResourceAndVerbTokensAreCaseSensitive(string resource, string verb)
+    {
+        var report = Analyze($$"""
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata: { name: reader }
+            rules:
+            - apiGroups: [""]
+              resources: ["{{resource}}"]
+              verbs: ["{{verb}}"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata: { name: reader }
+            subjects: [{ kind: User, name: alice }]
+            roleRef: { kind: ClusterRole, name: reader }
+            """);
+        Assert.DoesNotContain(report.Findings, f => f.Id.Contains("RBAC_SECRET_ACCESS", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void RoleBindingScopesAClusterRoleToItsNamespace()
     {

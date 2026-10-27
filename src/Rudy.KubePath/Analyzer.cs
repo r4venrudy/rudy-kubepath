@@ -724,9 +724,9 @@ public sealed class Analyzer
     private static bool TokenMatches(IReadOnlyList<string> patterns, string value) =>
         patterns.Any(pattern =>
             pattern == "*"
-            || pattern.Equals(value, StringComparison.OrdinalIgnoreCase)
+            || pattern.Equals(value, StringComparison.Ordinal)
             || (pattern.EndsWith("/*", StringComparison.Ordinal) &&
-                value.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase)));
+                value.StartsWith(pattern[..^1], StringComparison.Ordinal)));
 
     private static List<Grant> EffectiveGrants(string principal, List<Grant> allGrants)
     {
