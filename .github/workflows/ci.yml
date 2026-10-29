@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     name: .NET 10 · ${{ matrix.os }}
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
