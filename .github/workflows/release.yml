@@ -61,7 +61,9 @@ jobs:
           pattern: rudy-kubepath-*
           merge-multiple: true
       - name: Create SHA-256 checksums
-        run: sha256sum artifacts/* > artifacts/SHA256SUMS
+        run: cd artifacts && sha256sum *.tar.gz *.zip > SHA256SUMS
+      - name: Verify release SHA-256 manifest
+        run: python .github/scripts/release_checksums.py artifacts
       - name: Verify release archive integrity
         run: python .github/scripts/release_guard.py artifacts
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
